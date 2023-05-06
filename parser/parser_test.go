@@ -9,13 +9,15 @@ import (
 func TestLetStatements(t *testing.T) {
 	input := `
 let x = 5;
-let y = 10;
-let foobar = 83383
+let = 10;
+let = 83383;
 `
 	l := lexer.New(input)
 	p := New(l)
 
 	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
 	if program == nil {
 		t.Fatalf("ParseProgram() returned nil")
 	}
@@ -40,6 +42,20 @@ let foobar = 83383
 }
 
 // 辅助函数
+
+func checkParserErrors(t *testing.T, p *Parser) {
+	errors := p.errors
+	if len(errors) == 0 { //如果没有错误，直接返回
+		return
+	}
+
+	t.Errorf("parser has %d errors", len(errors))
+	for _, msg := range errors { //打印错误
+		t.Errorf("parser error: %q", msg)
+	}
+	t.FailNow()
+}
+
 func testLetStatement(t *testing.T, s ast.Statement, name string) bool {
 	if s.TokenLiteral() != "let" { //判断是否为let语句
 		t.Errorf("s.TokenLiteral not 'let'. got=%q", s.TokenLiteral())

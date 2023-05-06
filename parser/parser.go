@@ -4,6 +4,7 @@ import (
 	"TroInterpreter/ast"
 	"TroInterpreter/lexer"
 	"TroInterpreter/token"
+	"fmt"
 )
 
 type Parser struct {
@@ -11,6 +12,8 @@ type Parser struct {
 
 	curToken  token.Token //当前token
 	peekToken token.Token //下一个token
+
+	errors []string //错误
 }
 
 // 通过语法分析器，我们可以读取两个token，curToken和peekToken
@@ -26,8 +29,15 @@ func (p *Parser) expectPeekAndNext(t token.TypeToken) bool {
 		p.nextToken()
 		return true
 	} else {
+		p.peekError(t)
 		return false
 	}
+}
+
+// 报错
+func (p *Parser) peekError(t token.TypeToken) {
+	msg := fmt.Sprintf("类型得是 %s,却是 %s", t, p.peekToken.Type)
+	p.errors = append(p.errors, msg)
 }
 
 // ParseProgram 分析程序
@@ -69,17 +79,17 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 	if !p.expectPeekAndNext(token.ASSIGN) {                                   //判断下一个token是否为ASSIGN
 		return nil
 	}
-	//创建表达式节点，暂时直接跳过
+	//跳过=
 	p.nextToken()
-	//出现多个；的情况，直接跳过
-	for p.curToken.Type == token.SEMICOLON {
+	//跳过表达式
+	for p.curToken.Type != token.SEMICOLON {
 		p.nextToken()
 	}
 	return stmt
 }
 
 func New(l *lexer.Lexer) *Parser {
-	p := &Parser{l: l}
+	p := &Parser{l: l, errors: []string{}}
 
 	//读取两个token，初始化curToken和peekToken
 	p.nextToken()
