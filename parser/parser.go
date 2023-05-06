@@ -1,0 +1,89 @@
+package parser
+
+import (
+	"TroInterpreter/ast"
+	"TroInterpreter/lexer"
+	"TroInterpreter/token"
+)
+
+type Parser struct {
+	l *lexer.Lexer //词法分析器
+
+	curToken  token.Token //当前token
+	peekToken token.Token //下一个token
+}
+
+// 通过语法分析器，我们可以读取两个token，curToken和peekToken
+func (p *Parser) nextToken() {
+	//读取指针更新
+	p.curToken = p.peekToken
+	p.peekToken = p.l.NextToken()
+}
+
+// 读取下一个token，判断是不是需要的
+func (p *Parser) expectPeekAndNext(t token.TypeToken) bool {
+	if p.peekToken.Type == t { //如果下一个token是t类型
+		p.nextToken()
+		return true
+	} else {
+		return false
+	}
+}
+
+// ParseProgram 分析程序
+func (p *Parser) ParseProgram() *ast.Program {
+	program := &ast.Program{}              //创建一个Program节点
+	program.Statements = []ast.Statement{} //初始化语句数组
+
+	// 读取每个token，直到遇到EOF
+	for p.curToken.Type != token.EOF {
+		stmt := p.parseStatement()
+		if stmt != nil {
+			program.Statements = append(program.Statements, stmt) //将语句添加到语句数组中
+		}
+		p.nextToken()
+	}
+
+	return program
+}
+
+// 分析语句，用来导向每一个具体的语句分析函数
+func (p *Parser) parseStatement() ast.Statement {
+	switch p.curToken.Type {
+	case token.LET: //let语句
+		return p.parseLetStatement()
+	default:
+		return nil
+	}
+}
+
+// 分析let语句
+func (p *Parser) parseLetStatement() *ast.LetStatement {
+	//创建let语句节点
+	stmt := &ast.LetStatement{Token: p.curToken}
+	if !p.expectPeekAndNext(token.IDENT) { //判断下一个token是否为IDENT
+		return nil
+	}
+	//创建标识符节点
+	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal} //创建标识符节点
+	if !p.expectPeekAndNext(token.ASSIGN) {                                   //判断下一个token是否为ASSIGN
+		return nil
+	}
+	//创建表达式节点，暂时直接跳过
+	p.nextToken()
+	//出现多个；的情况，直接跳过
+	for p.curToken.Type == token.SEMICOLON {
+		p.nextToken()
+	}
+	return stmt
+}
+
+func New(l *lexer.Lexer) *Parser {
+	p := &Parser{l: l}
+
+	//读取两个token，初始化curToken和peekToken
+	p.nextToken()
+	p.nextToken()
+
+	return p
+}
