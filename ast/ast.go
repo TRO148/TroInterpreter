@@ -1,7 +1,6 @@
 package ast
 
 import (
-	"TroInterpreter/token"
 	"bytes"
 )
 
@@ -44,32 +43,4 @@ func (p *Program) String() string {
 	}
 
 	return out.String()
-}
-
-// 标识符
-type Identifier struct {
-	Token token.Token // token.IDENT
-	Value string      // 标识符的值
-}
-
-func (i *Identifier) expressionNode() {}
-func (i *Identifier) TokenLiteral() string {
-	return i.Token.Literal
-}
-func (i *Identifier) String() string {
-	return i.Value
-}
-
-// 整型字面量
-type IntegerLiteral struct {
-	Token token.Token
-	Value int64
-}
-
-func (i *IntegerLiteral) expressionNode() {}
-func (i *IntegerLiteral) TokenLiteral() string {
-	return i.Token.Literal
-}
-func (i *IntegerLiteral) String() string {
-	return i.Token.Literal
 }

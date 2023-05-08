@@ -54,9 +54,15 @@ func (p *Parser) expectPeekAndNext(t token.TypeToken) bool {
 	}
 }
 
-// 报错
+// 报错类型
 func (p *Parser) peekError(t token.TypeToken) {
 	msg := fmt.Sprintf("类型得是 %s,却是 %s", t, p.peekToken.Type)
+	p.errors = append(p.errors, msg)
+}
+
+// 报错前缀
+func (p *Parser) noPrefixParseFnError(t token.TypeToken) {
+	msg := fmt.Sprintf("没有 %s 前缀解析函数", t)
 	p.errors = append(p.errors, msg)
 }
 
@@ -99,44 +105,6 @@ func (p *Parser) parseStatement() ast.Statement {
 	}
 }
 
-// 分析表达式语句
-func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
-	stmt := &ast.ExpressionStatement{Token: p.curToken} //创建表达式语句节点
-	stmt.Expression = p.parseExpression(LOWEST)         //分析表达式
-	if p.peekToken.Type == token.SEMICOLON {            //如果下一个token是分号，跳过
-		p.nextToken()
-	}
-	return stmt
-}
-
-// 分析表达式
-func (p *Parser) parseExpression(precedence int) ast.Expression {
-	prefix := p.prefixParseFns[p.curToken.Type] //获取前缀解析函数
-	if prefix == nil {
-		return nil
-	}
-
-	return prefix()
-}
-
-// 分析标识符
-func (p *Parser) parseIdentifier() ast.Expression {
-	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal} //创建标识符节点
-}
-
-// 分析整数
-func (p *Parser) parseIntegerLiteral() ast.Expression {
-	lit := &ast.IntegerLiteral{Token: p.curToken} //创建整数节点
-	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
-	if err != nil {
-		msg := fmt.Sprintf("无法解析 %q 为整数", p.curToken.Literal)
-		p.errors = append(p.errors, msg)
-		return nil
-	}
-	lit.Value = value
-	return lit
-}
-
 // 分析let语句
 func (p *Parser) parseLetStatement() *ast.LetStatement {
 	//创建let语句节点
@@ -171,6 +139,56 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	return stmt
 }
 
+// 分析表达式语句
+func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
+	stmt := &ast.ExpressionStatement{Token: p.curToken} //创建表达式语句节点
+	stmt.Expression = p.parseExpression(LOWEST)         //分析表达式
+	if p.peekToken.Type == token.SEMICOLON {            //如果下一个token是分号，跳过
+		p.nextToken()
+	}
+	return stmt
+}
+
+// 分析表达式
+func (p *Parser) parseExpression(precedence int) ast.Expression {
+	prefix := p.prefixParseFns[p.curToken.Type] //获取前缀解析函数
+	if prefix == nil {
+		p.noPrefixParseFnError(p.curToken.Type)
+		return nil
+	}
+
+	return prefix()
+}
+
+// 分析标识符
+func (p *Parser) parseIdentifier() ast.Expression {
+	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal} //创建标识符节点
+}
+
+// 分析整数
+func (p *Parser) parseIntegerLiteral() ast.Expression {
+	lit := &ast.IntegerLiteral{Token: p.curToken} //创建整数节点
+	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
+	if err != nil {
+		msg := fmt.Sprintf("无法解析 %q 为整数", p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+	lit.Value = value
+	return lit
+}
+
+// 分析前缀表达式
+func (p *Parser) parsePrefixExpression() ast.Expression {
+	expression := &ast.PrefixExpression{
+		Token:    p.curToken,
+		Operator: p.curToken.Literal, //前缀操作符
+	}
+	p.nextToken()
+	expression.Right = p.parseExpression(PREFIX)
+	return expression
+}
+
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{l: l, errors: []string{}}
 
@@ -182,6 +200,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.prefixParseFns = make(map[token.TypeToken]prefixParseFn)
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	p.registerPrefix(token.NUMBER, p.parseIntegerLiteral)
+	p.registerPrefix(token.BANG, p.parsePrefixExpression)
+	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 
 	return p
 }
