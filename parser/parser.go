@@ -5,6 +5,23 @@ import (
 	"TroInterpreter/lexer"
 	"TroInterpreter/token"
 	"fmt"
+	"strconv"
+)
+
+const (
+	_ = iota
+	LOWEST
+	EQUALS      // ==
+	LESSGREATER // > or <
+	SUM         // +
+	PRODUCT     // *
+	PREFIX      // -X or !X
+	CALL        // myFunction(X)
+)
+
+type (
+	prefixParseFn func() ast.Expression
+	infixParseFn  func(ast.Expression) ast.Expression
 )
 
 type Parser struct {
@@ -14,6 +31,9 @@ type Parser struct {
 	peekToken token.Token //下一个token
 
 	errors []string //错误
+
+	prefixParseFns map[token.TypeToken]prefixParseFn //前缀解析函数映射
+	infixParseFns  map[token.TypeToken]infixParseFn  //中缀解析函数映射
 }
 
 // 通过语法分析器，我们可以读取两个token，curToken和peekToken
@@ -40,6 +60,16 @@ func (p *Parser) peekError(t token.TypeToken) {
 	p.errors = append(p.errors, msg)
 }
 
+// 注册前缀解析函数
+func (p *Parser) registerPrefix(tokenType token.TypeToken, fn prefixParseFn) {
+	p.prefixParseFns[tokenType] = fn
+}
+
+// 注册中缀解析函数
+func (p *Parser) registerInfix(tokenType token.TypeToken, fn infixParseFn) {
+	p.infixParseFns[tokenType] = fn
+}
+
 // ParseProgram 分析程序
 func (p *Parser) ParseProgram() *ast.Program {
 	program := &ast.Program{}              //创建一个Program节点
@@ -60,13 +90,51 @@ func (p *Parser) ParseProgram() *ast.Program {
 // 分析语句，用来导向每一个具体的语句分析函数
 func (p *Parser) parseStatement() ast.Statement {
 	switch p.curToken.Type {
-	case token.LET: //let语句
+	case token.LET:
 		return p.parseLetStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
 	default:
+		return p.parseExpressionStatement()
+	}
+}
+
+// 分析表达式语句
+func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
+	stmt := &ast.ExpressionStatement{Token: p.curToken} //创建表达式语句节点
+	stmt.Expression = p.parseExpression(LOWEST)         //分析表达式
+	if p.peekToken.Type == token.SEMICOLON {            //如果下一个token是分号，跳过
+		p.nextToken()
+	}
+	return stmt
+}
+
+// 分析表达式
+func (p *Parser) parseExpression(precedence int) ast.Expression {
+	prefix := p.prefixParseFns[p.curToken.Type] //获取前缀解析函数
+	if prefix == nil {
 		return nil
 	}
+
+	return prefix()
+}
+
+// 分析标识符
+func (p *Parser) parseIdentifier() ast.Expression {
+	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal} //创建标识符节点
+}
+
+// 分析整数
+func (p *Parser) parseIntegerLiteral() ast.Expression {
+	lit := &ast.IntegerLiteral{Token: p.curToken} //创建整数节点
+	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
+	if err != nil {
+		msg := fmt.Sprintf("无法解析 %q 为整数", p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+	lit.Value = value
+	return lit
 }
 
 // 分析let语句
@@ -109,6 +177,11 @@ func New(l *lexer.Lexer) *Parser {
 	//读取两个token，初始化curToken和peekToken
 	p.nextToken()
 	p.nextToken()
+
+	//注册前缀解析函数
+	p.prefixParseFns = make(map[token.TypeToken]prefixParseFn)
+	p.registerPrefix(token.IDENT, p.parseIdentifier)
+	p.registerPrefix(token.NUMBER, p.parseIntegerLiteral)
 
 	return p
 }
