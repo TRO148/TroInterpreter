@@ -167,7 +167,7 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 		if infix == nil {
 			return leftExp
 		}
-		p.nextToken()
+		p.nextToken() //到对应的中缀token再调用中缀解析函数
 		leftExp = infix(leftExp)
 	}
 
@@ -190,6 +190,11 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 	}
 	lit.Value = value
 	return lit
+}
+
+// 分析布尔值
+func (p *Parser) parseBoolean() ast.Expression {
+	return &ast.Boolean{Token: p.curToken, Value: token.TRUE == p.curToken.Type} //创建布尔值节点
 }
 
 // 分析前缀表达式
@@ -228,12 +233,13 @@ func New(l *lexer.Lexer) *Parser {
 	p.prefixParseFns = make(map[token.TypeToken]prefixParseFn)
 	p.infixParseFns = make(map[token.TypeToken]infixParseFn)
 
+	//注册前缀解析函数
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	p.registerPrefix(token.NUMBER, p.parseIntegerLiteral)
-
-	//注册前缀解析函数
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
+	p.registerPrefix(token.TRUE, p.parseBoolean)
+	p.registerPrefix(token.FALSE, p.parseBoolean)
 
 	//注册中缀解析函数
 	p.registerInfix(token.PLUS, p.parseInfixExpression)

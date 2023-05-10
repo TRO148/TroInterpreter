@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// 测试操作符优先级
 func TestOperatorPrecedenceParsing(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -60,6 +61,22 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 			"3 + 4 * 5 == 3 * 1 + 4 * 5",
 			"((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
 		},
+		{
+			"true",
+			"true",
+		},
+		{
+			"false",
+			"false",
+		},
+		{
+			"3 > 5 == false",
+			"((3 > 5) == false)",
+		},
+		{
+			"3 < 5 == true",
+			"((3 < 5) == true)",
+		},
 	}
 
 	for _, tt := range tests {
@@ -75,12 +92,59 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 	}
 }
 
+// 测试中缀
+func TestParsingPrefixExpressions(t *testing.T) {
+	prefixTests := []struct {
+		input    string
+		operator string
+		value    interface{}
+	}{
+		{"!5;", "!", 5},
+		{"-15;", "-", 15},
+		{"!foobar;", "!", "foobar"},
+		{"-foobar;", "-", "foobar"},
+		{"!true;", "!", true},
+		{"!false;", "!", false},
+	}
+
+	for _, tt := range prefixTests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParserErrors(t, p)
+
+		if len(program.Statements) != 1 {
+			t.Fatalf("program.Statements does not contain %d statements. got=%d\n",
+				1, len(program.Statements))
+		}
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
+				program.Statements[0])
+		}
+
+		exp, ok := stmt.Expression.(*ast.PrefixExpression)
+		if !ok {
+			t.Fatalf("stmt is not ast.PrefixExpression. got=%T", stmt.Expression)
+		}
+		if exp.Operator != tt.operator {
+			t.Fatalf("exp.Operator is not '%s'. got=%s",
+				tt.operator, exp.Operator)
+		}
+		if !testLiteralExpression(t, exp.Right, tt.value) {
+			return
+		}
+	}
+}
+
+// 测试前缀
 func TestParsingInfixExpressions(t *testing.T) {
 	infixTests := []struct { //测试用例
 		input      string
-		leftValue  int64
+		leftValue  interface{}
 		operator   string
-		rightValue int64
+		rightValue interface{}
 	}{
 		{"5 + 5;", 5, "+", 5},
 		{"5 - 5;", 5, "-", 5},
@@ -90,6 +154,8 @@ func TestParsingInfixExpressions(t *testing.T) {
 		{"5 < 5;", 5, "<", 5},
 		{"5 == 5;", 5, "==", 5},
 		{"5 != 5;", 5, "!=", 5},
+		{"true == true", true, "==", true},
+		{"true != false", true, "!=", false},
 	}
 
 	for _, tt := range infixTests {
@@ -101,63 +167,11 @@ func TestParsingInfixExpressions(t *testing.T) {
 			t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
 		}
 
-		stmt, ok := program.Statements[0].(*ast.ExpressionStatement) //检查解析结果
-		if !ok {
-			t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
-		}
-
-		exp, ok := stmt.Expression.(*ast.InfixExpression) //检查解析结果
-		if !ok {
-			t.Fatalf("stmt is not ast.InfixExpression. got=%T", stmt.Expression)
-		}
-
-		if !testIntegerLiteral(t, exp.Left, tt.leftValue) { //检查解析结果
-			return
-		}
-
-		if exp.Operator != tt.operator { //检查解析结果
-			t.Fatalf("exp.Operator is not '%s'. got=%s", tt.operator, exp.Operator)
-		}
-
-		if !testIntegerLiteral(t, exp.Right, tt.rightValue) { //检查解析结果
-			return
-		}
-	}
-}
-
-func TestStatements(t *testing.T) {
-	prefixTests := []struct {
-		input    string
-		operator string
-		value    int64
-	}{
-		{"!5;", "!", 5},
-		{"-15;", "-", 15},
-	}
-
-	for _, tt := range prefixTests {
-		l := lexer.New(tt.input)
-		p := New(l)
-		program := p.ParseProgram()
-		checkParserErrors(t, p)
-
-		if len(program.Statements) != 1 {
-			t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
-		}
-
 		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-		if !ok {
+		if !ok { //检查解析结果
 			t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
 		}
-
-		exp, ok := stmt.Expression.(*ast.PrefixExpression)
-		if !ok {
-			t.Fatalf("stmt is not ast.PrefixExpression. got=%T", stmt.Expression)
-		}
-		if exp.Operator != tt.operator {
-			t.Fatalf("exp.Operator is not '%s'. got=%s", tt.operator, exp.Operator)
-		}
-		if !testIntegerLiteral(t, exp.Right, tt.value) {
+		if !testInfixExpression(t, stmt.Expression, tt.leftValue, tt.operator, tt.rightValue) {
 			return
 		}
 	}
@@ -177,30 +191,43 @@ func checkParserErrors(t *testing.T, p *Parser) {
 	t.FailNow()
 }
 
-func testLetStatement(t *testing.T, s ast.Statement, name string) bool {
-	if s.TokenLiteral() != "let" { //判断是否为let语句
-		t.Errorf("s.TokenLiteral not 'let'. got=%q", s.TokenLiteral())
+func testInfixExpression(t *testing.T, exp ast.Expression, left interface{}, operator string, right interface{}) bool {
+	opExp, ok := exp.(*ast.InfixExpression) //类型断言
+	if !ok {                                //判断是否为InfixExpression
+		t.Errorf("exp is not ast.InfixExpression. got=%T(%s)", exp, exp)
 		return false
 	}
 
-	// 类型断言
-	letStmt, ok := s.(*ast.LetStatement)
-	if !ok { //判断是否为LetStatement
-		t.Errorf("s not *ast.LetStatement. got=%T", s)
+	if !testLiteralExpression(t, opExp.Left, left) { //判断左值是否正确
 		return false
 	}
 
-	if letStmt.Name.Value != name { //判断标识符是否为name
-		t.Errorf("letStmt.Name.Value not '%s'. got=%s", name, letStmt.Name.Value)
+	if opExp.Operator != operator { //判断操作符是否正确
+		t.Errorf("exp.Operator is not '%s'. got=%q", operator, opExp.Operator)
 		return false
 	}
 
-	if letStmt.Name.TokenLiteral() != name { //判断标识符是否为name
-		t.Errorf("letStmt.Name.TokenLiteral() not '%s'. got=%s", name, letStmt.Name.TokenLiteral())
+	if !testLiteralExpression(t, opExp.Right, right) { //判断右值是否正确
 		return false
 	}
 
 	return true
+}
+
+func testLiteralExpression(t *testing.T, exp ast.Expression, expected interface{}) bool {
+	switch v := expected.(type) { //判断expected的类型
+	case int:
+		return testIntegerLiteral(t, exp, int64(v)) //判断整数值是否正确
+	case int64:
+		return testIntegerLiteral(t, exp, v) //判断整数值是否正确
+	case string:
+		return testIdentifier(t, exp, v) //判断标识符是否正确
+	case bool:
+		return testBooleanLiteral(t, exp, v) //判断布尔值是否正确
+	}
+
+	t.Errorf("type of exp not handled. got=%T", exp)
+	return false
 }
 
 func testIntegerLiteral(t *testing.T, il ast.Expression, value int64) bool {
@@ -218,6 +245,47 @@ func testIntegerLiteral(t *testing.T, il ast.Expression, value int64) bool {
 
 	if integ.Value != value { //判断整数值是否正确
 		t.Errorf("integ.Value not %d. got=%d", value, integ.Value)
+		return false
+	}
+
+	return true
+}
+
+func testIdentifier(t *testing.T, exp ast.Expression, value string) bool {
+	ident, ok := exp.(*ast.Identifier) //类型断言
+	if !ok {
+		t.Errorf("exp not *ast.Identifier. got=%T", exp)
+		return false
+	}
+
+	if ident.Value != value { //判断标识符是否正确
+		t.Errorf("ident.Value not %s. got=%s", value, ident.Value)
+		return false
+	}
+
+	if ident.TokenLiteral() != value {
+		t.Errorf("ident.TokenLiteral() not %s. got=%s", value, ident.TokenLiteral())
+		return false
+	}
+
+	return true
+}
+
+func testBooleanLiteral(t *testing.T, exp ast.Expression, value bool) bool {
+	// 类型断言
+	boolean, ok := exp.(*ast.Boolean)
+	if !ok { //判断是否为Boolean
+		t.Errorf("exp not *ast.Boolean. got=%T", exp)
+		return false
+	}
+
+	if boolean.Value != value { //判断布尔值是否正确
+		t.Errorf("boolean.Value not %t. got=%t", value, boolean.Value)
+		return false
+	}
+
+	if boolean.TokenLiteral() != fmt.Sprintf("%t", value) { //判断布尔值是否正确
+		t.Errorf("boolean.TokenLiteral() not %t. got=%s", value, boolean.TokenLiteral())
 		return false
 	}
 
