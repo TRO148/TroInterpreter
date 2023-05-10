@@ -8,22 +8,6 @@ import (
 	"strconv"
 )
 
-const (
-	_ = iota
-	LOWEST
-	EQUALS      // ==
-	LESSGREATER // > or <
-	SUM         // +
-	PRODUCT     // *
-	PREFIX      // -X or !X
-	CALL        // myFunction(X)
-)
-
-type (
-	prefixParseFn func() ast.Expression
-	infixParseFn  func(ast.Expression) ast.Expression
-)
-
 type Parser struct {
 	l *lexer.Lexer //词法分析器
 
@@ -36,7 +20,7 @@ type Parser struct {
 	infixParseFns  map[token.TypeToken]infixParseFn  //中缀解析函数映射
 }
 
-// 通过语法分析器，我们可以读取两个token，curToken和peekToken
+// 读取下一个token
 func (p *Parser) nextToken() {
 	//读取指针更新
 	p.curToken = p.peekToken
@@ -74,6 +58,22 @@ func (p *Parser) registerPrefix(tokenType token.TypeToken, fn prefixParseFn) {
 // 注册中缀解析函数
 func (p *Parser) registerInfix(tokenType token.TypeToken, fn infixParseFn) {
 	p.infixParseFns[tokenType] = fn
+}
+
+// 获取当前token优先级
+func (p *Parser) curPrecedence() int {
+	if p, ok := precedences[p.curToken.Type]; ok {
+		return p
+	}
+	return LOWEST
+}
+
+// 获取下一个token优先级
+func (p *Parser) peekPrecedence() int {
+	if p, ok := precedences[p.peekToken.Type]; ok {
+		return p
+	}
+	return LOWEST
 }
 
 // ParseProgram 分析程序
@@ -119,8 +119,10 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 	}
 	//跳过=
 	p.nextToken()
+	//分析表达式
+	stmt.Value = p.parseExpression(LOWEST)
 	//跳过表达式
-	for p.curToken.Type != token.SEMICOLON {
+	if p.peekToken.Type != token.SEMICOLON {
 		p.nextToken()
 	}
 	return stmt
@@ -130,10 +132,10 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	//创建return语句节点
 	stmt := &ast.ReturnStatement{Token: p.curToken}
-	//跳过return
 	p.nextToken()
+	stmt.ReturnValue = p.parseExpression(LOWEST)
 	//跳过表达式
-	for p.curToken.Type != token.SEMICOLON {
+	if p.curToken.Type != token.SEMICOLON {
 		p.nextToken()
 	}
 	return stmt
@@ -157,7 +159,19 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 		return nil
 	}
 
-	return prefix()
+	// 执行前缀表达式解析函数
+	leftExp := prefix()
+
+	for p.peekToken.Type != token.SEMICOLON && precedence < p.peekPrecedence() {
+		infix := p.infixParseFns[p.peekToken.Type] //获取中缀解析函数
+		if infix == nil {
+			return leftExp
+		}
+		p.nextToken()
+		leftExp = infix(leftExp)
+	}
+
+	return leftExp
 }
 
 // 分析标识符
@@ -189,6 +203,21 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 	return expression
 }
 
+// 分析中缀表达式
+func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
+	expression := &ast.InfixExpression{
+		Token:    p.curToken,
+		Operator: p.curToken.Literal, //中缀操作符
+		Left:     left,
+	}
+
+	precedence := p.curPrecedence()
+	p.nextToken()
+	expression.Right = p.parseExpression(precedence)
+
+	return expression
+}
+
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{l: l, errors: []string{}}
 
@@ -196,12 +225,25 @@ func New(l *lexer.Lexer) *Parser {
 	p.nextToken()
 	p.nextToken()
 
-	//注册前缀解析函数
 	p.prefixParseFns = make(map[token.TypeToken]prefixParseFn)
+	p.infixParseFns = make(map[token.TypeToken]infixParseFn)
+
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	p.registerPrefix(token.NUMBER, p.parseIntegerLiteral)
+
+	//注册前缀解析函数
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
+
+	//注册中缀解析函数
+	p.registerInfix(token.PLUS, p.parseInfixExpression)
+	p.registerInfix(token.MINUS, p.parseInfixExpression)
+	p.registerInfix(token.ASTER, p.parseInfixExpression)
+	p.registerInfix(token.SLASH, p.parseInfixExpression)
+	p.registerInfix(token.EQ, p.parseInfixExpression)
+	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
+	p.registerInfix(token.LT, p.parseInfixExpression)
+	p.registerInfix(token.GT, p.parseInfixExpression)
 
 	return p
 }
