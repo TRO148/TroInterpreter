@@ -34,6 +34,12 @@ func Eval(node ast.Node) object.Object {
 	case *ast.PrefixExpression:
 		right := Eval(node.Right)
 		return evalPrefixExpression(node.Operator, right)
+
+		//分析中缀表达式
+	case *ast.InfixExpression:
+		left := Eval(node.Left)
+		right := Eval(node.Right)
+		return evalInfixExpression(node.Operator, left, right)
 	}
 
 	return nil
@@ -94,4 +100,49 @@ func evalMinusPrefixOperatorExpression(right object.Object) object.Object {
 
 	value := right.(*object.Integer).Value
 	return &object.Integer{Value: -value}
+}
+
+// 求值中缀表达式
+func evalInfixExpression(operator string, left, right object.Object) object.Object {
+	//如果都是整数，就用evalIntegerInfixExpression求值
+	if left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ {
+		return evalIntegerInfixExpression(operator, left, right)
+	}
+
+	if operator == "==" {
+		//通过都是一个对象，来进行比较，实现true 与 false比较
+		return bool2BoolObject(left == right)
+	} else if operator == "!=" {
+		return bool2BoolObject(left != right)
+	}
+
+	//都不是就返回NULL
+	return NULL
+}
+
+// 整数中缀运算
+func evalIntegerInfixExpression(operator string, left, right object.Object) object.Object {
+	leftVal := left.(*object.Integer).Value
+	rightVal := right.(*object.Integer).Value
+
+	switch operator {
+	case "+":
+		return &object.Integer{Value: leftVal + rightVal}
+	case "-":
+		return &object.Integer{Value: leftVal - rightVal}
+	case "*":
+		return &object.Integer{Value: leftVal * rightVal}
+	case "/":
+		return &object.Integer{Value: leftVal / rightVal}
+	case "<":
+		return bool2BoolObject(leftVal < rightVal)
+	case ">":
+		return bool2BoolObject(leftVal > rightVal)
+	case "==":
+		return bool2BoolObject(leftVal == rightVal)
+	case "!=":
+		return bool2BoolObject(leftVal != rightVal)
+	default:
+		return NULL
+	}
 }
