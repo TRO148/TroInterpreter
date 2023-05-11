@@ -1,5 +1,6 @@
 package object
 
+// 空值
 type Null struct{}
 
 func (n *Null) Type() TypeObject {

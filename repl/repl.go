@@ -1,6 +1,7 @@
 package repl
 
 import (
+	"TroInterpreter/evaluator"
 	"TroInterpreter/lexer"
 	"TroInterpreter/parser"
 	"bufio"
@@ -8,7 +9,7 @@ import (
 	"io"
 )
 
-const PROMPT = " >>  "
+const PROMPT = ">> "
 
 func printParserError(out io.Writer, err []string) {
 	io.WriteString(out, "解析错误:\n")
@@ -30,16 +31,23 @@ func Start(in io.Reader, out io.Writer) {
 
 		//解析输入
 		line := scanner.Text()
+		//创建词法分析器
 		l := lexer.New(line)
+		//创建语法分析器
 		p := parser.New(l)
-		program := p.ParseProgram()
 
+		//解析程序
+		program := p.ParseProgram()
 		if len(p.Errors()) != 0 {
 			printParserError(out, p.Errors())
 			continue
 		}
 
-		io.WriteString(out, program.String())
-		io.WriteString(out, "\n")
+		//求值器
+		evaluated := evaluator.Eval(program)
+		if evaluated != nil {
+			io.WriteString(out, evaluated.Inspect())
+			io.WriteString(out, "\n")
+		}
 	}
 }
