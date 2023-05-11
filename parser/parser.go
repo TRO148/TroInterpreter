@@ -121,6 +121,10 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 	p.nextToken()
 	//分析表达式
 	stmt.Value = p.parseExpression(LOWEST)
+	//如果下一个token是分号，跳到分号
+	if p.peekToken.Type == token.SEMICOLON {
+		p.nextToken()
+	}
 	return stmt
 }
 
@@ -132,6 +136,10 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	p.nextToken()
 	//分析表达式
 	stmt.ReturnValue = p.parseExpression(LOWEST)
+	//如果下一个token是分号，跳到分号
+	if p.peekToken.Type == token.SEMICOLON {
+		p.nextToken()
+	}
 	return stmt
 }
 
@@ -139,7 +147,7 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 	stmt := &ast.ExpressionStatement{Token: p.curToken} //创建表达式语句节点
 	stmt.Expression = p.parseExpression(LOWEST)         //分析表达式
-	if p.peekToken.Type == token.SEMICOLON {            //如果下一个token是分号，跳过
+	if p.peekToken.Type == token.SEMICOLON {            //如果下一个token是分号，则跳到分号
 		p.nextToken()
 	}
 	return stmt
