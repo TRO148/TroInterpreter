@@ -168,8 +168,6 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	return leftExp
 }
 
-//q: 解析器如何分清表达式，是否继续？例如if判断的时候1+1)
-
 // 解析块语句
 func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 	block := &ast.BlockStatement{Token: p.curToken}
@@ -186,6 +184,99 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 	}
 
 	return block
+}
+
+// 分析函数参数
+func (p *Parser) parseFunctionParameters() []*ast.Identifier {
+	var identifiers []*ast.Identifier
+
+	if p.peekToken.Type == token.RPAREN {
+		p.nextToken()
+		return identifiers
+	}
+
+	p.nextToken()
+
+	//解析第一个参数
+	ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	identifiers = append(identifiers, ident)
+
+	for p.peekToken.Type == token.COMMA {
+		p.nextToken()
+		p.nextToken()
+		ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		identifiers = append(identifiers, ident)
+	}
+
+	if !p.expectPeekAndNext(token.RPAREN) {
+		return nil
+	}
+
+	return identifiers
+}
+
+// 分析函数表达式
+func (p *Parser) parseFunctionExpression() ast.Expression {
+	expression := &ast.FunctionExpression{
+		Token: p.curToken,
+	}
+
+	//跳到(
+	if !p.expectPeekAndNext(token.LPAREN) {
+		return nil
+	}
+
+	expression.Parameters = p.parseFunctionParameters()
+
+	//跳过{
+	if !p.expectPeekAndNext(token.LBRACE) {
+		return nil
+	}
+
+	//解析块语句
+	expression.Body = p.parseBlockStatement()
+
+	return expression
+}
+
+// 分析调用函数参数
+func (p *Parser) parseCallFunctionArguments() []ast.Expression {
+	var args []ast.Expression
+
+	//判断有没有截止
+	if p.peekToken.Type == token.RPAREN {
+		p.nextToken()
+		return args
+	}
+
+	p.nextToken()
+	args = append(args, p.parseExpression(LOWEST))
+
+	//如果为，不断解析
+	for p.peekToken.Type == token.COMMA {
+		p.nextToken()
+		p.nextToken()
+		args = append(args, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeekAndNext(token.RPAREN) {
+		return nil
+	}
+
+	return args
+}
+
+// 分析调用函数表达式
+func (p *Parser) parseCallFunctionExpression(function ast.Expression) ast.Expression {
+	expression := &ast.CallExpression{
+		Token:    p.curToken,
+		Function: function,
+	}
+
+	//解析参数
+	expression.Arguments = p.parseCallFunctionArguments()
+
+	return expression
 }
 
 // 分析if表达式
@@ -214,7 +305,8 @@ func (p *Parser) parseIfExpression() ast.Expression {
 	exprssion.Consequence = p.parseBlockStatement()
 
 	//跳到else
-	if p.expectPeekAndNext(token.ELSE) {
+	if p.peekToken.Type == token.ELSE {
+		p.nextToken()
 		//跳到{
 		if !p.expectPeekAndNext(token.LBRACE) {
 			return nil
@@ -301,14 +393,15 @@ func New(l *lexer.Lexer) *Parser {
 	p.infixParseFns = make(map[token.TypeToken]infixParseFn)
 
 	//注册前缀解析函数
+	p.registerPrefix(token.BANG, p.parsePrefixExpression)
+	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	p.registerPrefix(token.NUMBER, p.parseIntegerLiteral)
 	p.registerPrefix(token.TRUE, p.parseBoolean)
 	p.registerPrefix(token.FALSE, p.parseBoolean)
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
-	p.registerPrefix(token.BANG, p.parsePrefixExpression)
-	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	p.registerPrefix(token.IF, p.parseIfExpression)
+	p.registerPrefix(token.FUNCTION, p.parseFunctionExpression)
 
 	//注册中缀解析函数
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -319,6 +412,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
 	p.registerInfix(token.LT, p.parseInfixExpression)
 	p.registerInfix(token.GT, p.parseInfixExpression)
+	p.registerInfix(token.LPAREN, p.parseCallFunctionExpression)
 
 	return p
 }
