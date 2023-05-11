@@ -20,6 +20,11 @@ type Parser struct {
 	infixParseFns  map[token.TypeToken]infixParseFn  //中缀解析函数映射
 }
 
+// 获取errors
+func (p *Parser) Errors() []string {
+	return p.errors
+}
+
 // 读取下一个token
 func (p *Parser) nextToken() {
 	//读取指针更新
