@@ -121,10 +121,6 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 	p.nextToken()
 	//分析表达式
 	stmt.Value = p.parseExpression(LOWEST)
-	//跳过表达式
-	if p.peekToken.Type != token.SEMICOLON {
-		p.nextToken()
-	}
 	return stmt
 }
 
@@ -132,12 +128,10 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	//创建return语句节点
 	stmt := &ast.ReturnStatement{Token: p.curToken}
+	//跳过return
 	p.nextToken()
+	//分析表达式
 	stmt.ReturnValue = p.parseExpression(LOWEST)
-	//跳过表达式
-	if p.curToken.Type != token.SEMICOLON {
-		p.nextToken()
-	}
 	return stmt
 }
 
@@ -174,6 +168,65 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	return leftExp
 }
 
+//q: 解析器如何分清表达式，是否继续？例如if判断的时候1+1)
+
+// 解析块语句
+func (p *Parser) parseBlockStatement() *ast.BlockStatement {
+	block := &ast.BlockStatement{Token: p.curToken}
+	block.Statements = []ast.Statement{}
+	//跳过{
+	p.nextToken()
+	for p.curToken.Type != token.RBRACE && p.curToken.Type != token.EOF {
+		stmt := p.parseStatement()
+		if stmt != nil {
+			block.Statements = append(block.Statements, stmt) //将语句添加到语句数组中
+		}
+		//跳过;
+		p.nextToken()
+	}
+
+	return block
+}
+
+// 分析if表达式
+func (p *Parser) parseIfExpression() ast.Expression {
+	exprssion := &ast.IfExpression{
+		Token: p.curToken,
+	}
+
+	if !p.expectPeekAndNext(token.LPAREN) {
+		return nil
+	}
+
+	p.nextToken()
+	exprssion.Condition = p.parseExpression(LOWEST)
+
+	//跳到)
+	if !p.expectPeekAndNext(token.RPAREN) {
+		return nil
+	}
+	//跳到{
+	if !p.expectPeekAndNext(token.LBRACE) {
+		return nil
+	}
+
+	//解析块语句
+	exprssion.Consequence = p.parseBlockStatement()
+
+	//跳到else
+	if p.expectPeekAndNext(token.ELSE) {
+		//跳到{
+		if !p.expectPeekAndNext(token.LBRACE) {
+			return nil
+		}
+
+		//解析块语句
+		exprssion.Alternative = p.parseBlockStatement()
+	}
+
+	return exprssion
+}
+
 // 分析标识符
 func (p *Parser) parseIdentifier() ast.Expression {
 	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal} //创建标识符节点
@@ -195,6 +248,20 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 // 分析布尔值
 func (p *Parser) parseBoolean() ast.Expression {
 	return &ast.Boolean{Token: p.curToken, Value: token.TRUE == p.curToken.Type} //创建布尔值节点
+}
+
+// 分析分组表达式
+func (p *Parser) parseGroupedExpression() ast.Expression {
+	//过当前的token(
+	p.nextToken()
+	//解析下面的
+	exp := p.parseExpression(LOWEST)
+
+	if !p.expectPeekAndNext(token.RPAREN) {
+		return nil
+	}
+
+	return exp
 }
 
 // 分析前缀表达式
@@ -236,10 +303,12 @@ func New(l *lexer.Lexer) *Parser {
 	//注册前缀解析函数
 	p.registerPrefix(token.IDENT, p.parseIdentifier)
 	p.registerPrefix(token.NUMBER, p.parseIntegerLiteral)
-	p.registerPrefix(token.BANG, p.parsePrefixExpression)
-	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	p.registerPrefix(token.TRUE, p.parseBoolean)
 	p.registerPrefix(token.FALSE, p.parseBoolean)
+	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
+	p.registerPrefix(token.BANG, p.parsePrefixExpression)
+	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
+	p.registerPrefix(token.IF, p.parseIfExpression)
 
 	//注册中缀解析函数
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
