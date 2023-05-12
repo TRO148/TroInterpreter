@@ -11,12 +11,12 @@ var (
 	NULL  = &object.Null{}
 )
 
-// 求值
+// Eval 求值
 func Eval(node ast.Node) object.Object {
 	switch node := node.(type) {
 	//分析程序
 	case *ast.Program:
-		return evalStatements(node.Statements)
+		return evalProgram(node)
 
 		//分析表达式
 	case *ast.ExpressionStatement:
@@ -47,7 +47,13 @@ func Eval(node ast.Node) object.Object {
 
 		//分析block
 	case *ast.BlockStatement:
-		return evalStatements(node.Statements)
+		return evalBlockStatements(node)
+
+		//分析return
+	case *ast.ReturnStatement:
+		val := Eval(node.ReturnValue)
+		return &object.ReturnValue{Value: val}
+
 	}
 
 	return nil
@@ -61,12 +67,31 @@ func bool2BoolObject(input bool) *object.Boolean {
 	return FALSE
 }
 
-// 求值语句
-func evalStatements(stmts []ast.Statement) object.Object {
+// 求值程序
+func evalProgram(program *ast.Program) object.Object {
 	var result object.Object
 
-	for _, statement := range stmts {
+	for _, statement := range program.Statements {
 		result = Eval(statement)
+
+		if returnValue, ok := result.(*object.ReturnValue); ok {
+			return returnValue.Value
+		}
+	}
+
+	return result
+}
+
+// 求值块语句
+func evalBlockStatements(block *ast.BlockStatement) object.Object {
+	var result object.Object
+
+	for _, statement := range block.Statements {
+		result = Eval(statement)
+
+		if result != nil && result.Type() == object.RETRUN_VALUE_OBJ {
+			return result
+		}
 	}
 
 	return result
