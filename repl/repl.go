@@ -3,6 +3,7 @@ package repl
 import (
 	"TroInterpreter/evaluator"
 	"TroInterpreter/lexer"
+	"TroInterpreter/object"
 	"TroInterpreter/parser"
 	"bufio"
 	"fmt"
@@ -21,6 +22,7 @@ func printParserError(out io.Writer, err []string) {
 func Start(in io.Reader, out io.Writer) {
 	//创建输入输出流
 	scanner := bufio.NewScanner(in)
+	env := object.NewEnvironment()
 	for {
 		fmt.Fprintf(out, PROMPT)
 		//读取输入
@@ -44,7 +46,7 @@ func Start(in io.Reader, out io.Writer) {
 		}
 
 		//求值器
-		evaluated := evaluator.Eval(program)
+		evaluated := evaluator.Eval(program, env)
 		if evaluated != nil {
 			io.WriteString(out, evaluated.Inspect())
 			io.WriteString(out, "\n")

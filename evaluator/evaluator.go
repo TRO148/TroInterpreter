@@ -6,15 +6,19 @@ import (
 )
 
 // Eval 求值
-func Eval(node ast.Node) object.Object {
+func Eval(node ast.Node, env *object.Environment) object.Object {
 	switch node := node.(type) {
 	//分析程序
 	case *ast.Program:
-		return evalProgram(node)
+		return evalProgram(node, env)
 
 		//分析表达式
 	case *ast.ExpressionStatement:
-		return Eval(node.Expression)
+		return Eval(node.Expression, env)
+
+		//分析标识符
+	case *ast.Identifier:
+		return evalIdentifier(node, env)
 
 		//分析整数
 	case *ast.IntegerLiteral:
@@ -26,7 +30,7 @@ func Eval(node ast.Node) object.Object {
 
 		//分析前缀表达式
 	case *ast.PrefixExpression:
-		right := Eval(node.Right)
+		right := Eval(node.Right, env)
 		if isError(right) {
 			return right
 		}
@@ -34,11 +38,11 @@ func Eval(node ast.Node) object.Object {
 
 		//分析中缀表达式
 	case *ast.InfixExpression:
-		left := Eval(node.Left)
+		left := Eval(node.Left, env)
 		if isError(left) {
 			return left
 		}
-		right := Eval(node.Right)
+		right := Eval(node.Right, env)
 		if isError(right) {
 			return right
 		}
@@ -46,19 +50,27 @@ func Eval(node ast.Node) object.Object {
 
 		//分析if
 	case *ast.IfExpression:
-		return evalIfExpression(node)
+		return evalIfExpression(node, env)
 
 		//分析block
 	case *ast.BlockStatement:
-		return evalBlockStatements(node)
+		return evalBlockStatements(node, env)
 
 		//分析return
 	case *ast.ReturnStatement:
-		val := Eval(node.ReturnValue)
+		val := Eval(node.ReturnValue, env)
 		if isError(val) {
 			return val
 		}
 		return &object.ReturnValue{Value: val}
+
+		//分析let
+	case *ast.LetStatement:
+		val := Eval(node.Value, env)
+		if isError(val) {
+			return val
+		}
+		env.Set(node.Name.Value, val)
 
 	}
 
@@ -66,11 +78,11 @@ func Eval(node ast.Node) object.Object {
 }
 
 // 求值程序
-func evalProgram(program *ast.Program) object.Object {
+func evalProgram(program *ast.Program, env *object.Environment) object.Object {
 	var result object.Object
 
 	for _, statement := range program.Statements {
-		result = Eval(statement)
+		result = Eval(statement, env)
 
 		if returnValue, ok := result.(*object.ReturnValue); ok {
 			return returnValue.Value
@@ -84,11 +96,11 @@ func evalProgram(program *ast.Program) object.Object {
 }
 
 // 求值块语句
-func evalBlockStatements(block *ast.BlockStatement) object.Object {
+func evalBlockStatements(block *ast.BlockStatement, env *object.Environment) object.Object {
 	var result object.Object
 
 	for _, statement := range block.Statements {
-		result = Eval(statement)
+		result = Eval(statement, env)
 
 		if result != nil {
 			if result.Type() == object.RETRUN_VALUE_OBJ || result.Type() == object.ERROR_OBJ {
@@ -189,17 +201,27 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
 }
 
 // 求值if语句
-func evalIfExpression(ie *ast.IfExpression) object.Object {
-	condition := Eval(ie.Condition)
+func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Object {
+	condition := Eval(ie.Condition, env)
 	if isError(condition) {
 		return condition
 	}
 
 	if isTruthy(condition) {
-		return Eval(ie.Consequence)
+		return Eval(ie.Consequence, env)
 	} else if ie.Alternative != nil {
-		return Eval(ie.Alternative)
+		return Eval(ie.Alternative, env)
 	} else {
-		return newError("if语句的条件不是布尔值: %s", condition.Type())
+		return NULL
 	}
+}
+
+// 分析标识符
+func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
+	val, ok := env.Get(node.Value)
+	if !ok {
+		return newError("无法找到标识符: " + node.Value)
+	}
+
+	return val
 }
