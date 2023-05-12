@@ -5,12 +5,6 @@ import (
 	"TroInterpreter/object"
 )
 
-var (
-	TRUE  = &object.Boolean{Value: true}
-	FALSE = &object.Boolean{Value: false}
-	NULL  = &object.Null{}
-)
-
 // Eval 求值
 func Eval(node ast.Node) object.Object {
 	switch node := node.(type) {
@@ -33,12 +27,21 @@ func Eval(node ast.Node) object.Object {
 		//分析前缀表达式
 	case *ast.PrefixExpression:
 		right := Eval(node.Right)
+		if isError(right) {
+			return right
+		}
 		return evalPrefixExpression(node.Operator, right)
 
 		//分析中缀表达式
 	case *ast.InfixExpression:
 		left := Eval(node.Left)
+		if isError(left) {
+			return left
+		}
 		right := Eval(node.Right)
+		if isError(right) {
+			return right
+		}
 		return evalInfixExpression(node.Operator, left, right)
 
 		//分析if
@@ -52,19 +55,14 @@ func Eval(node ast.Node) object.Object {
 		//分析return
 	case *ast.ReturnStatement:
 		val := Eval(node.ReturnValue)
+		if isError(val) {
+			return val
+		}
 		return &object.ReturnValue{Value: val}
 
 	}
 
 	return nil
-}
-
-// 由于布尔值只有两种，所以直接引用
-func bool2BoolObject(input bool) *object.Boolean {
-	if input {
-		return TRUE
-	}
-	return FALSE
 }
 
 // 求值程序
@@ -76,6 +74,9 @@ func evalProgram(program *ast.Program) object.Object {
 
 		if returnValue, ok := result.(*object.ReturnValue); ok {
 			return returnValue.Value
+		}
+		if errorValue, ok := result.(*object.Error); ok {
+			return errorValue
 		}
 	}
 
@@ -89,8 +90,10 @@ func evalBlockStatements(block *ast.BlockStatement) object.Object {
 	for _, statement := range block.Statements {
 		result = Eval(statement)
 
-		if result != nil && result.Type() == object.RETRUN_VALUE_OBJ {
-			return result
+		if result != nil {
+			if result.Type() == object.RETRUN_VALUE_OBJ || result.Type() == object.ERROR_OBJ {
+				return result
+			}
 		}
 	}
 
@@ -105,7 +108,7 @@ func evalPrefixExpression(operator string, right object.Object) object.Object {
 	case "-":
 		return evalMinusPrefixOperatorExpression(right)
 	default:
-		return NULL
+		return newError("错误操作符: %s%s", operator, right.Type())
 	}
 }
 
@@ -128,7 +131,7 @@ func evalBangOperatorExpression(right object.Object) object.Object {
 func evalMinusPrefixOperatorExpression(right object.Object) object.Object {
 	//先检查操作数是不是整数，不是就返回NULL
 	if right.Type() != object.INTEGER_OBJ {
-		return NULL
+		return newError("错误操作符: -%s", right.Type())
 	}
 
 	value := right.(*object.Integer).Value
@@ -149,8 +152,13 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return bool2BoolObject(left != right)
 	}
 
-	//都不是就返回NULL
-	return NULL
+	if left.Type() != right.Type() {
+		//如果两个操作数类型不同，就报错
+		return newError("类型不匹配: %s %s %s", left.Type(), operator, right.Type())
+	}
+
+	//都不是就报错
+	return newError("错误操作符: %s %s %s", left.Type(), operator, right.Type())
 }
 
 // 整数中缀运算
@@ -176,33 +184,22 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
 	case "!=":
 		return bool2BoolObject(leftVal != rightVal)
 	default:
-		return NULL
+		return newError("错误操作符: %s %s %s", left.Type(), operator, right.Type())
 	}
 }
 
-// if语句
+// 求值if语句
 func evalIfExpression(ie *ast.IfExpression) object.Object {
 	condition := Eval(ie.Condition)
+	if isError(condition) {
+		return condition
+	}
 
 	if isTruthy(condition) {
 		return Eval(ie.Consequence)
 	} else if ie.Alternative != nil {
 		return Eval(ie.Alternative)
 	} else {
-		return NULL
-	}
-}
-
-// 判断condition是不是满足条件
-func isTruthy(obj object.Object) bool {
-	switch obj {
-	case NULL:
-		return false
-	case TRUE:
-		return true
-	case FALSE:
-		return false
-	default:
-		return true
+		return newError("if语句的条件不是布尔值: %s", condition.Type())
 	}
 }

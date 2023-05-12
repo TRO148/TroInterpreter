@@ -7,6 +7,68 @@ import (
 	"testing"
 )
 
+// evaluator/evaluator_test.go
+
+func TestErrorHandling(t *testing.T) {
+	tests := []struct {
+		input           string
+		expectedMessage string
+	}{
+		{
+			"5 + true;",
+			"类型不匹配: INTEGER + BOOLEAN",
+		},
+		{
+			"5 + true; 5;",
+			"类型不匹配: INTEGER + BOOLEAN",
+		},
+		{
+			"-true",
+			"错误操作符: -BOOLEAN",
+		},
+		{
+			"true + false;",
+			"错误操作符: BOOLEAN + BOOLEAN",
+		},
+		{
+			"5; true + false; 5",
+			"错误操作符: BOOLEAN + BOOLEAN",
+		},
+		{
+			"if (10 > 1) { true + false; }",
+			"错误操作符: BOOLEAN + BOOLEAN",
+		},
+		{
+			`
+if (10 > 1) {
+  if (10 > 1) {
+    return true + false;
+  }
+
+  return 1;
+}
+`,
+			"错误操作符: BOOLEAN + BOOLEAN",
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("no error object returned. got=%T(%+v)",
+				evaluated, evaluated)
+			continue
+		}
+
+		if errObj.Message != tt.expectedMessage {
+			t.Errorf("wrong error message. expected=%q, got=%q",
+				tt.expectedMessage, errObj.Message)
+		}
+	}
+}
+
 func TestReturnStatements(t *testing.T) {
 	tests := []struct {
 		input    string
