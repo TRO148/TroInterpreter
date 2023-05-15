@@ -26,6 +26,9 @@ if (5 < 10) {
 
 10 == 10;
 10 != 9;
+
+"h i"
+"hi"
 `
 	tests := []struct {
 		expectedType    token.TypeToken
@@ -104,6 +107,8 @@ if (5 < 10) {
 		{token.NOT_EQ, "!="},
 		{token.NUMBER, "9"},
 		{token.SEMICOLON, ";"},
+		{token.STRING, "h i"},
+		{token.STRING, "hi"},
 		{token.EOF, ""},
 	}
 	l := New(input)

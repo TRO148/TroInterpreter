@@ -57,6 +57,18 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
+func (l *Lexer) readString() string {
+	//读取字符串
+	position := l.position + 1
+	for {
+		l.readChar()
+		if l.ch == '"' || l.ch == 0 {
+			break
+		}
+	}
+	return l.input[position:l.position]
+}
+
 func (l *Lexer) NextToken() token.Token {
 	l.skipWhitespace() //跳过空白字符
 
@@ -97,7 +109,8 @@ func (l *Lexer) NextToken() token.Token {
 		tok = token.Token{Type: token.RBRACE, Literal: string(l.ch)}
 	case 0:
 		tok = token.Token{Type: token.EOF, Literal: ""}
-
+	case '"':
+		tok = token.Token{Type: token.STRING, Literal: l.readString()}
 		//运算符
 	case '+':
 		tok = token.Token{Type: token.PLUS, Literal: string(l.ch)}

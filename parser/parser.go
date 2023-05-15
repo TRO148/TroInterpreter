@@ -355,6 +355,11 @@ func (p *Parser) parseBoolean() ast.Expression {
 	return &ast.Boolean{Token: p.curToken, Value: token.TRUE == p.curToken.Type} //创建布尔值节点
 }
 
+// 分析字符串
+func (p *Parser) parseStringLiteral() ast.Expression {
+	return &ast.StringLiteral{Token: p.curToken, Value: p.curToken.Literal} //创建字符串节点
+}
+
 // 分析分组表达式
 func (p *Parser) parseGroupedExpression() ast.Expression {
 	//过当前的token(
@@ -393,39 +398,4 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	expression.Right = p.parseExpression(precedence)
 
 	return expression
-}
-
-func New(l *lexer.Lexer) *Parser {
-	p := &Parser{l: l, errors: []string{}}
-
-	//读取两个token，初始化curToken和peekToken
-	p.nextToken()
-	p.nextToken()
-
-	p.prefixParseFns = make(map[token.TypeToken]prefixParseFn)
-	p.infixParseFns = make(map[token.TypeToken]infixParseFn)
-
-	//注册前缀解析函数
-	p.registerPrefix(token.BANG, p.parsePrefixExpression)
-	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
-	p.registerPrefix(token.IDENT, p.parseIdentifier)
-	p.registerPrefix(token.NUMBER, p.parseIntegerLiteral)
-	p.registerPrefix(token.TRUE, p.parseBoolean)
-	p.registerPrefix(token.FALSE, p.parseBoolean)
-	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
-	p.registerPrefix(token.IF, p.parseIfExpression)
-	p.registerPrefix(token.FUNCTION, p.parseFunctionExpression)
-
-	//注册中缀解析函数
-	p.registerInfix(token.PLUS, p.parseInfixExpression)
-	p.registerInfix(token.MINUS, p.parseInfixExpression)
-	p.registerInfix(token.ASTER, p.parseInfixExpression)
-	p.registerInfix(token.SLASH, p.parseInfixExpression)
-	p.registerInfix(token.EQ, p.parseInfixExpression)
-	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
-	p.registerInfix(token.LT, p.parseInfixExpression)
-	p.registerInfix(token.GT, p.parseInfixExpression)
-	p.registerInfix(token.LPAREN, p.parseCallFunctionExpression)
-
-	return p
 }

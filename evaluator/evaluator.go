@@ -24,6 +24,10 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.IntegerLiteral:
 		return &object.Integer{Value: node.Value}
 
+		//分析字符串
+	case *ast.StringLiteral:
+		return &object.String{Value: node.Value}
+
 		//分析布尔值
 	case *ast.Boolean:
 		return bool2BoolObject(node.Value)
@@ -174,6 +178,10 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return evalIntegerInfixExpression(operator, left, right)
 	}
 
+	if left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ {
+		return evalStringInfixExpression(operator, left, right)
+	}
+
 	if operator == "==" {
 		//通过都是一个对象，来进行比较，实现true 与 false比较
 		return bool2BoolObject(left == right)
@@ -215,6 +223,25 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
 	default:
 		return newError("错误操作符: %s %s %s", left.Type(), operator, right.Type())
 	}
+}
+
+// 字符串中缀运算
+func evalStringInfixExpression(operator string, left, right object.Object) object.Object {
+	switch operator {
+	case "==":
+		leftVal := left.(*object.String).Value
+		rightVal := right.(*object.String).Value
+		return bool2BoolObject(leftVal == rightVal)
+	case "!=":
+		leftVal := left.(*object.String).Value
+		rightVal := right.(*object.String).Value
+		return bool2BoolObject(leftVal != rightVal)
+	case "+":
+		leftVal := left.(*object.String).Value
+		rightVal := right.(*object.String).Value
+		return &object.String{Value: leftVal + rightVal}
+	}
+	return newError("错误操作符: %s %s %s", left.Type(), operator, right.Type())
 }
 
 // 求值if语句

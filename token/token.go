@@ -58,4 +58,5 @@ const (
 	ELSE     = "ELSE"     //else
 	RETURN   = "RETURN"   //return
 	NUMBER   = "NUMBER"   //数字
+	STRING   = "STRING"   //字符串
 )
