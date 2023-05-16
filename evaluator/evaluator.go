@@ -262,12 +262,15 @@ func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Obje
 
 // 分析标识符
 func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
-	val, ok := env.Get(node.Value)
-	if !ok {
-		return newError("无法找到标识符: " + node.Value)
+	//分析是不是标识符
+	if val, ok := env.Get(node.Value); ok {
+		return val
 	}
-
-	return val
+	//分析是不是内置函数
+	if builtin, ok := builtins[node.Value]; ok {
+		return builtin
+	}
+	return newError("标识符未定义: " + node.Value)
 }
 
 // 分析表达式
@@ -286,14 +289,15 @@ func evalExpressions(exps []ast.Expression, env *object.Environment) []object.Ob
 
 // 求值函数
 func applyFunction(fn object.Object, args []object.Object) object.Object {
-	function, ok := fn.(*object.Function)
-	if !ok {
-		return newError("不是函数: %s", fn.Type())
+	switch fn := fn.(type) {
+	case *object.Function:
+		extendEnv := extendFunctionEnv(fn, args)
+		evaluated := Eval(fn.Body, extendEnv)
+		return unwrapReturnValue(evaluated)
+	case *object.Builtin:
+		return fn.Fn(args...)
 	}
-
-	extendedEnv := extendFunctionEnv(function, args)
-	evaluated := Eval(function.Body, extendedEnv)
-	return unwrapReturnValue(evaluated)
+	return newError("不是函数: %s", fn.Type())
 }
 
 // 扩展函数环境
