@@ -81,6 +81,31 @@ func (p *Parser) peekPrecedence() int {
 	return LOWEST
 }
 
+// 分析数组表达式
+func (p *Parser) parseExpressionList(end token.TypeToken) []ast.Expression {
+	var list []ast.Expression
+
+	if p.peekToken.Type == end {
+		p.nextToken()
+		return list
+	}
+
+	p.nextToken()
+	list = append(list, p.parseExpression(LOWEST))
+
+	for p.peekToken.Type == token.COMMA {
+		p.nextToken()
+		p.nextToken()
+		list = append(list, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeekAndNext(end) {
+		return nil
+	}
+
+	return list
+}
+
 // ParseProgram 分析程序
 func (p *Parser) ParseProgram() *ast.Program {
 	program := &ast.Program{}              //创建一个Program节点
@@ -252,33 +277,6 @@ func (p *Parser) parseFunctionExpression() ast.Expression {
 	return expression
 }
 
-// 分析调用函数参数
-func (p *Parser) parseCallFunctionArguments() []ast.Expression {
-	var args []ast.Expression
-
-	//判断有没有截止
-	if p.peekToken.Type == token.RPAREN {
-		p.nextToken()
-		return args
-	}
-
-	p.nextToken()
-	args = append(args, p.parseExpression(LOWEST))
-
-	//如果为，不断解析
-	for p.peekToken.Type == token.COMMA {
-		p.nextToken()
-		p.nextToken()
-		args = append(args, p.parseExpression(LOWEST))
-	}
-
-	if !p.expectPeekAndNext(token.RPAREN) {
-		return nil
-	}
-
-	return args
-}
-
 // 分析调用函数表达式
 func (p *Parser) parseCallFunctionExpression(function ast.Expression) ast.Expression {
 	expression := &ast.CallExpression{
@@ -287,7 +285,7 @@ func (p *Parser) parseCallFunctionExpression(function ast.Expression) ast.Expres
 	}
 
 	//解析参数
-	expression.Arguments = p.parseCallFunctionArguments()
+	expression.Arguments = p.parseExpressionList(token.RPAREN)
 
 	return expression
 }
@@ -360,6 +358,13 @@ func (p *Parser) parseStringLiteral() ast.Expression {
 	return &ast.StringLiteral{Token: p.curToken, Value: p.curToken.Literal} //创建字符串节点
 }
 
+// 分析数组
+func (p *Parser) parseArrayLiteral() ast.Expression {
+	array := &ast.ArrayLiteral{Token: p.curToken}
+	array.Elements = p.parseExpressionList(token.RBRACKET)
+	return array
+}
+
 // 分析分组表达式
 func (p *Parser) parseGroupedExpression() ast.Expression {
 	//过当前的token(
@@ -396,6 +401,23 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	precedence := p.curPrecedence()
 	p.nextToken()
 	expression.Right = p.parseExpression(precedence)
+
+	return expression
+}
+
+// 分析索引表达式
+func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
+	expression := &ast.IndexExpression{
+		Token: p.curToken,
+		Left:  left,
+	}
+
+	p.nextToken()
+	expression.Index = p.parseExpression(LOWEST)
+
+	if !p.expectPeekAndNext(token.RBRACKET) {
+		return nil
+	}
 
 	return expression
 }

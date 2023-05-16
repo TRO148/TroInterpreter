@@ -29,6 +29,8 @@ if (5 < 10) {
 
 "h i"
 "hi"
+
+[1, 2]
 `
 	tests := []struct {
 		expectedType    token.TypeToken
@@ -109,6 +111,11 @@ if (5 < 10) {
 		{token.SEMICOLON, ";"},
 		{token.STRING, "h i"},
 		{token.STRING, "hi"},
+		{token.LBRACKET, "["},
+		{token.NUMBER, "1"},
+		{token.COMMA, ","},
+		{token.NUMBER, "2"},
+		{token.RBRACKET, "]"},
 		{token.EOF, ""},
 	}
 	l := New(input)

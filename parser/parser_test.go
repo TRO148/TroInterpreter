@@ -7,6 +7,22 @@ import (
 	"testing"
 )
 
+func TestArrayExpression(t *testing.T) {
+	input := `[1,2]`
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt := program.Statements[0].(*ast.ExpressionStatement)
+	array, ok := stmt.Expression.(*ast.ArrayLiteral)
+	if !ok {
+		t.Fatalf("exp not *ast.ArrayLiteral. got=%T", stmt.Expression)
+	}
+	testIntegerLiteral(t, array.Elements[0], 1)
+	testIntegerLiteral(t, array.Elements[1], 2)
+}
+
 func TestStringLiteralExpression(t *testing.T) {
 	input := `"hello world";`
 
@@ -294,6 +310,10 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 		{
 			"2 + (3 + 4)",
 			"(2 + (3 + 4))",
+		},
+		{
+			"a * [1, 2, 3, 4][a * c] * d",
+			"((a * ([1, 2, 3, 4][(a * c)])) * d)",
 		},
 	}
 

@@ -47,6 +47,8 @@ const (
 	RPAREN    = ")" //右括号
 	LBRACE    = "{" //左花括号
 	RBRACE    = "}" //右花括号
+	LBRACKET  = "[" //左中括号
+	RBRACKET  = "]" //右中括号
 	// 标识符
 	IDENT = "IDENT" //标识符
 	// 关键字

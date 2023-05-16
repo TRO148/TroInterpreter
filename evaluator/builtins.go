@@ -10,11 +10,67 @@ var builtins = map[string]*object.Builtin{
 			}
 
 			switch arg := args[0].(type) {
+			case *object.Array:
+				return &object.Integer{Value: int64(len(arg.Elements))}
 			case *object.String:
 				return &object.Integer{Value: int64(len(arg.Value))}
 			default:
 				return newError("参数类型错误，期望=string，实际=%s", arg.Type())
 			}
+		},
+	},
+	"first": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("参数数量错误，期望=1，实际=%d", len(args))
+			}
+			if args[0].Type() != object.ARRAY_OBJ {
+				return newError("参数类型错误，期望=array，实际=%s", args[0].Type())
+			}
+
+			arr := args[0].(*object.Array)
+			if len(arr.Elements) > 0 {
+				return arr.Elements[0]
+			}
+
+			return NULL
+		},
+	},
+	"last": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("参数数量错误，期望=1，实际=%d", len(args))
+			}
+			if args[0].Type() != object.ARRAY_OBJ {
+				return newError("参数类型错误，期望=array，实际=%s", args[0].Type())
+			}
+
+			arr := args[0].(*object.Array)
+			length := len(arr.Elements)
+			if length > 0 {
+				return arr.Elements[length-1]
+			}
+
+			return NULL
+		},
+	},
+	"push": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return newError("参数数量错误，期望=2，实际=%d", len(args))
+			}
+			if args[0].Type() != object.ARRAY_OBJ {
+				return newError("参数类型错误，期望=array，实际=%s", args[0].Type())
+			}
+
+			arr := args[0].(*object.Array)
+			length := len(arr.Elements)
+
+			newElements := make([]object.Object, length+1, length+1)
+			copy(newElements, arr.Elements)
+			newElements[length] = args[1]
+
+			return &object.Array{Elements: newElements}
 		},
 	},
 	"help": &object.Builtin{
@@ -33,6 +89,8 @@ var builtins = map[string]*object.Builtin{
 					return &object.String{
 						Value: "return语句用于返回值，格式为：return 表达式",
 					}
+				default:
+					return newError("参数错误，期望=let或return，实际=%s", arg)
 				}
 			}
 
